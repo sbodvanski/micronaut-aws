@@ -26,10 +26,9 @@ import io.micronaut.runtime.ApplicationConfiguration;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.util.ArrayList;
+
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -72,11 +71,10 @@ public abstract class AwsDistributedConfigurationClient implements Configuration
 
     @Override
     public Publisher<PropertySource> getPropertySources(Environment environment) {
-        List<String> configurationResolutionPrefixes = generateConfigurationResolutionPrefixes(environment);
-
+        Map<String, Optional<String>> configurationResolutionPrefixes = generateConfigurationResolutionPrefixes(environment);
         Map<String, Map> configurationResolutionPrefixesValues = new HashMap<>();
 
-        for (String prefix : configurationResolutionPrefixes) {
+        for (String prefix : configurationResolutionPrefixes.keySet()) {
             Optional<Map> keyValuesOptional = keyValueFetcher.keyValuesByPrefix(prefix);
             if (keyValuesOptional.isPresent()) {
                 Map keyValues = keyValuesOptional.get();
@@ -93,14 +91,14 @@ public abstract class AwsDistributedConfigurationClient implements Configuration
         }
         for (String k : allKeys) {
             if (!result.containsKey(k)) {
-                for (String prefix : configurationResolutionPrefixes) {
-                    if (configurationResolutionPrefixesValues.containsKey(prefix)) {
-                        Map<String, ?> values = configurationResolutionPrefixesValues.get(prefix);
+                for (Map.Entry<String, Optional<String>> prefixEntry : configurationResolutionPrefixes.entrySet()) {
+                    if (configurationResolutionPrefixesValues.containsKey(prefixEntry.getKey())) {
+                        Map<String, ?> values = configurationResolutionPrefixesValues.get(prefixEntry.getKey());
                         if (values.containsKey(k)) {
                             if (LOG.isTraceEnabled()) {
-                                LOG.trace("adding property {} from prefix {}", k, prefix);
+                                LOG.trace("adding property {} from prefix {}", k, prefixEntry.getKey());
                             }
-                            result.put(k, values.get(k));
+                            result.put(renameKey(k, prefixEntry.getValue()), values.get(k));
                             break;
                         }
                     }
@@ -127,28 +125,28 @@ public abstract class AwsDistributedConfigurationClient implements Configuration
     protected abstract String getPropertySourceName();
 
     /**
-     *
      * @param environment Micronaut's Environment
-     * @return A List of prefixes ordered by precedence
+     * @return A Map of secret source prefixes optionally paired with the secret key group prefix that is applied before properties are injected into the Micronaut's context.
+     * Map is ordered by precedence.
      */
     @NonNull
-    private List<String> generateConfigurationResolutionPrefixes(@NonNull Environment environment) {
-        List<String> configurationResolutionPrefixes = new ArrayList<>();
+    protected Map<String, Optional<String>> generateConfigurationResolutionPrefixes(@NonNull Environment environment) {
+        Map<String, Optional<String>> configurationResolutionPrefixes = new HashMap<>(4);
         if (applicationName != null) {
             if (awsDistributedConfiguration.isSearchActiveEnvironments()) {
                 for (String name : environment.getActiveNames()) {
-                    configurationResolutionPrefixes.add(prefix(applicationName, name));
-               }
+                    configurationResolutionPrefixes.put(prefix(applicationName, name), Optional.empty());
+                }
             }
-            configurationResolutionPrefixes.add(prefix(applicationName));
+            configurationResolutionPrefixes.put(prefix(applicationName), Optional.empty());
         }
         if (awsDistributedConfiguration.isSearchCommonApplication()) {
             if (awsDistributedConfiguration.isSearchActiveEnvironments()) {
                 for (String name : environment.getActiveNames()) {
-                    configurationResolutionPrefixes.add(prefix(awsDistributedConfiguration.getCommonApplicationName(), name));
+                    configurationResolutionPrefixes.put(prefix(awsDistributedConfiguration.getCommonApplicationName(), name), Optional.empty());
                 }
             }
-            configurationResolutionPrefixes.add(prefix(awsDistributedConfiguration.getCommonApplicationName()));
+            configurationResolutionPrefixes.put(prefix(awsDistributedConfiguration.getCommonApplicationName()), Optional.empty());
         }
         return configurationResolutionPrefixes;
     }
@@ -164,5 +162,22 @@ public abstract class AwsDistributedConfigurationClient implements Configuration
             return awsDistributedConfiguration.getPrefix() +  appName + UNDERSCORE + envName + awsDistributedConfiguration.getDelimiter();
         }
         return awsDistributedConfiguration.getPrefix() +  appName + awsDistributedConfiguration.getDelimiter();
+    }
+
+    /**
+     * @param originalKey An original key
+     * @param keyGroupPrefix A key group prefix that is applied before configuration properties are injected into the Micronaut context.
+     * @return A renamed key that is no longer a source of ambiguity
+     */
+    @NonNull
+    private String renameKey(String originalKey, Optional<String> keyGroupPrefix) {
+        if (keyGroupPrefix.isPresent()) {
+            String keyPrefix = keyGroupPrefix.get();
+            if (keyPrefix.endsWith(".")) {
+                return keyPrefix + originalKey;
+            }
+            return keyPrefix + "." + originalKey;
+        }
+        return originalKey;
     }
 }

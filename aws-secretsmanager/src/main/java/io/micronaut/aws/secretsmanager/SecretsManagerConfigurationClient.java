@@ -19,11 +19,18 @@ import io.micronaut.aws.distributedconfiguration.AwsDistributedConfiguration;
 import io.micronaut.aws.distributedconfiguration.AwsDistributedConfigurationClient;
 import io.micronaut.context.annotation.BootstrapContextCompatible;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.context.env.Environment;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.util.StringUtils;
 import io.micronaut.runtime.ApplicationConfiguration;
 
 import jakarta.inject.Singleton;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Distributed configuration client for AWS Secrets Manager.
@@ -32,24 +39,28 @@ import jakarta.inject.Singleton;
  * @since 2.8.0
  */
 @Requires(beans = {
-        AwsDistributedConfiguration.class,
-        SecretsManagerKeyValueFetcher.class
+    AwsDistributedConfiguration.class,
+    SecretsManagerKeyValueFetcher.class
 })
 @Singleton
 @BootstrapContextCompatible
 public class SecretsManagerConfigurationClient extends AwsDistributedConfigurationClient {
 
     /**
-     *
      * @param awsDistributedConfiguration AWS Distributed Configuration
      * @param secretsManagerKeyValueFetcher Secrets Manager Key Value Fetcher
      * @param applicationConfiguration Application Configuration
+     * @param secretsManagerSecretsConfiguration
      */
     public SecretsManagerConfigurationClient(AwsDistributedConfiguration awsDistributedConfiguration,
                                              SecretsManagerKeyValueFetcher secretsManagerKeyValueFetcher,
-                                             @Nullable ApplicationConfiguration applicationConfiguration) {
+                                             @Nullable ApplicationConfiguration applicationConfiguration,
+                                             SecretsManagerSecretsConfiguration secretsManagerSecretsConfiguration) {
         super(awsDistributedConfiguration, secretsManagerKeyValueFetcher, applicationConfiguration);
+        this.secretsManagerSecretsConfiguration = secretsManagerSecretsConfiguration;
     }
+
+    private SecretsManagerSecretsConfiguration secretsManagerSecretsConfiguration;
 
     @Override
     @NonNull
@@ -60,5 +71,26 @@ public class SecretsManagerConfigurationClient extends AwsDistributedConfigurati
     @Override
     public String getDescription() {
         return "AWS Secrets Manager";
+    }
+
+
+    @Override
+    @NonNull
+    protected Map<String, Optional<String>> generateConfigurationResolutionPrefixes(@NonNull Environment environment) {
+        Map<String, Optional<String>> configurationResolutionPrefixes = super.generateConfigurationResolutionPrefixes(environment);
+        List<SecretHolder> secretConfiguration = secretsManagerSecretsConfiguration.getSecrets();
+        Map<String, Optional<String>> result = new HashMap<>();
+
+        for (String configurationResolutionPrefix : configurationResolutionPrefixes.keySet()) {
+            for (SecretHolder secretHolder : secretConfiguration) {
+                if (StringUtils.isNotEmpty(secretHolder.getSecret())) {
+                    String secretResolutionPrefix = configurationResolutionPrefix + secretHolder.getSecret();
+                    result.put(secretResolutionPrefix, Optional.of(secretHolder.getPrefix()));
+                }
+            }
+        }
+
+        result.putAll(configurationResolutionPrefixes);
+        return result;
     }
 }
