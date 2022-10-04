@@ -78,11 +78,11 @@ public class SecretsManagerConfigurationClient extends AwsDistributedConfigurati
     @NonNull
     protected Map<String, Optional<String>> generateConfigurationResolutionPrefixes(@NonNull Environment environment) {
         Map<String, Optional<String>> configurationResolutionPrefixes = super.generateConfigurationResolutionPrefixes(environment);
-        List<SecretHolder> secretConfiguration = secretsManagerSecretsConfiguration.getSecrets();
+        List<SecretsManagerSecretsConfiguration.SecretHolder> secretConfiguration = secretsManagerSecretsConfiguration.getSecrets();
         Map<String, Optional<String>> result = new HashMap<>();
 
         for (String configurationResolutionPrefix : configurationResolutionPrefixes.keySet()) {
-            for (SecretHolder secretHolder : secretConfiguration) {
+            for (SecretsManagerSecretsConfiguration.SecretHolder secretHolder : secretConfiguration) {
                 if (StringUtils.isNotEmpty(secretHolder.getSecret())) {
                     String secretResolutionPrefix = configurationResolutionPrefix + secretHolder.getSecret();
                     result.put(secretResolutionPrefix, Optional.of(secretHolder.getPrefix()));

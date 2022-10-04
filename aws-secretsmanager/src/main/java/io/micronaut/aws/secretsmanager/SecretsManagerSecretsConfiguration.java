@@ -15,6 +15,9 @@
  */
 package io.micronaut.aws.secretsmanager;
 
+import io.micronaut.context.annotation.BootstrapContextCompatible;
+import io.micronaut.context.annotation.ConfigurationProperties;
+
 import java.util.List;
 
 /**
@@ -22,10 +25,19 @@ import java.util.List;
  * @author Sergio del Amo
  * @since 2.8.0
  */
+@BootstrapContextCompatible
+@ConfigurationProperties(SecretsManagerConfigurationProperties.PREFIX)
 public interface SecretsManagerSecretsConfiguration {
 
     /**
      * @return the AWS Secrets Manager secrets configuration.
      */
     List<SecretHolder> getSecrets();
+
+    List<SecretHolder> getInstances();
+
+    interface SecretHolder {
+        String getSecret();
+        String getPrefix();
+    }
 }
