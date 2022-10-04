@@ -1,23 +1,18 @@
 package io.micronaut.aws.secretsmanager
 
+import io.micronaut.test.extensions.spock.annotation.MicronautTest
+import jakarta.inject.Inject
+
+@MicronautTest
 class SecretsManagerSecretsConfigurationSpec extends ApplicationContextSpecification {
 
-    @Override
-    Map<String, Object> getConfiguration() {
-        super.configuration + [
-                'aws.secretsmanager.enabled': true,
-                'aws.secretsmanager.secrets': [
-                        ["secret": "rds", "prefix": "atasources.default"],
-                        ["secret": "rds_backup", "prefix": "datasources.backup"]
-                ]
-        ]
-    }
+    @Inject
+    SecretsManagerSecretsConfiguration secretsConfiguration
 
-    void "temp: get secret configuration get secrets"() {
-        def bean = applicationContext.getBean(SecretsManagerSecretsConfiguration)
+    void "Make sure the config has secrets"() {
 
         expect:
-        !bean.getSecrets().isEmpty()
+        !secretsConfiguration.getSecrets().isEmpty()
     }
-    
+
 }

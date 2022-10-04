@@ -1,0 +1,11 @@
+micronaut:
+  application:
+    name: micronautguide
+  config-client:
+    enabled: true
+aws:
+  secretsmanager:
+    enabled: true
+    secrets:
+      - secret: rds
+        prefix: datasources.default
